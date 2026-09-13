@@ -109,7 +109,7 @@
 
 ## 3. Схема сети
 
-![Схема VPC NeoShop](scheme/vpc.png)
+![Схема VPC NeoShop](lab1/scheme/vpc.svg)
 
 Файлы: `scheme/vpc.png` (растровая версия), `scheme/vpc.svg` (векторный исходник).
 
@@ -415,7 +415,7 @@ Security Group — stateful-фильтр на уровне сетевого ин
 
 ## 3. Схема сети
 
-![Схема VPC МаркетГрад](scheme/vpc.png)
+![Схема VPC МаркетГрад](lab1/scheme/vpc.png)
 
 Файлы: `scheme/vpc.png` (растровая версия), `scheme/vpc.svg` (векторный исходник).
 
