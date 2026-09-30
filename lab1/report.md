@@ -471,6 +471,10 @@ POST /api/payments               66 мс  [ERROR]
 
 ![Поиск медленных трейсов в Jaeger](../lab-2/screenshots/jaeger-slow-traces-search.png)
 
+Водопад одного из них: запрос длится 3,0 с, и почти всё это время занимает вложенный спан `slow-dependency` (`opensearch`):
+
+![Водопад трейса задержки](../lab-2/screenshots/jaeger-slow-trace.png)
+
 ## 6. Алерты: Prometheus + Alertmanager
 
 Правила — [`lab-2/configs/prometheus/alerts.yml`](../lab-2/configs/prometheus/alerts.yml), по одному на каждую букву RED. Порог выбирается **между нормой и аномалией**: норма стенда — RPS < 1, ошибок 0, p95 ≈ 0,05–0,1 с. Если порог выше самой аномалии, алерт не сработает никогда; если на уровне шума — будет будить впустую.
@@ -525,6 +529,5 @@ POST /api/payments               66 мс  [ERROR]
 - [x] Трейсы в Jaeger (через Alloy как OTel Collector); найдены трейс задержки и трейс ошибки; трейс найден по `trace_id` из лога.
 - [x] Три правила алертов на PromQL, Alertmanager с webhook-получателем; все три спровоцированы кнопками и дошли до получателя в состоянии firing.
 - [x] `README.md` в `lab-2/`: что и как поднято, метрики на дашборде, обоснование алертов.
-- [x] Скриншоты: дашборд RED, логи с ошибкой в Grafana, трейс-водопад ошибки, список трейсов задержки в Jaeger, алерты firing в Alertmanager и pending в Prometheus, страница заглушки.
-- [ ] Скриншот водопада трейса задержки с раскрытым спаном `slow-dependency` (`jaeger-slow-trace.png`) — приложен только список трейсов.
+- [x] Скриншоты: дашборд RED, логи с ошибкой в Grafana, трейс-водопад задержки (`slow-dependency`) и ошибки, список трейсов задержки в Jaeger, алерты firing в Alertmanager и pending в Prometheus, страница заглушки.
 - [x] Платные облачные ресурсы не создавались; стенд локальный, удаляется `docker compose down -v`.
