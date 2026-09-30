@@ -419,7 +419,9 @@ Security Group — stateful-фильтр на уровне сетевого ин
 
 Проверка кнопками: при «Нагрузке» RPS вырос до ~30 (в основном `/api/products/{product_id}`, `/api/cart/items`, `/api/products`); «Создать ошибку» ×15 на фоне нагрузки дала долю ошибок 1,5% — нагрузка «разбавляет» ошибки; после 6 нажатий «Создать задержку» p95 вырос до 2,78 с, у `/api/products/search` — 2,95 с, у `/api/products` остался 0,09 с.
 
-> Скриншот дашборда `grafana-red-dashboard.png` не приложен — см. чек-лист.
+Дашборд во время одновременных «Нагрузки», «Ошибки» и «Задержки» — все три панели выше пунктиров порогов (5% ошибок, p95 1 с):
+
+![Дашборд RED в Grafana](../lab-2/screenshots/grafana-red-dashboard.png)
 
 ## 4. Логи: Loki + Grafana Alloy
 
@@ -465,7 +467,9 @@ POST /api/payments               66 мс  [ERROR]
 
 ![Трейс ошибки](../lab-2/screenshots/jaeger-error-trace.png)
 
-> Скриншот трейса задержки `jaeger-slow-trace.png` не приложен — см. чек-лист.
+Трейсы задержки в Jaeger UI: поиск `GET /api/products/search` с Min Duration 1s — 20 трейсов по 1,0–2,9 с, в каждом 2 спана (корневой + `slow-dependency`):
+
+![Поиск медленных трейсов в Jaeger](../lab-2/screenshots/jaeger-slow-traces-search.png)
 
 ## 6. Алерты: Prometheus + Alertmanager
 
@@ -497,7 +501,9 @@ POST /api/payments               66 мс  [ERROR]
 
 ![Алерт в состоянии pending](../lab-2/screenshots/prometheus-alerts-pending.png)
 
-> Скриншот сработавших (firing) алертов в UI Alertmanager (`localhost:9093`) не приложен — см. чек-лист.
+Все три алерта одновременно активны в Alertmanager, получатель — `neoshop-webhook`:
+
+![Сработавшие алерты в Alertmanager](../lab-2/screenshots/alertmanager-firing.png)
 
 ## 7. Выводы
 
@@ -519,8 +525,6 @@ POST /api/payments               66 мс  [ERROR]
 - [x] Трейсы в Jaeger (через Alloy как OTel Collector); найдены трейс задержки и трейс ошибки; трейс найден по `trace_id` из лога.
 - [x] Три правила алертов на PromQL, Alertmanager с webhook-получателем; все три спровоцированы кнопками и дошли до получателя в состоянии firing.
 - [x] `README.md` в `lab-2/`: что и как поднято, метрики на дашборде, обоснование алертов.
-- [x] Скриншоты: логи в Grafana, трейс ошибки, страница заглушки, алерт в Prometheus (pending).
-- [ ] Скриншот дашборда RED в Grafana (`grafana-red-dashboard.png`).
-- [ ] Скриншот трейса задержки со спаном `slow-dependency` (`jaeger-slow-trace.png`).
-- [ ] Скриншот сработавших алертов в UI Alertmanager (`alertmanager-firing.png`) — есть только pending в Prometheus.
+- [x] Скриншоты: дашборд RED, логи с ошибкой в Grafana, трейс-водопад ошибки, список трейсов задержки в Jaeger, алерты firing в Alertmanager и pending в Prometheus, страница заглушки.
+- [ ] Скриншот водопада трейса задержки с раскрытым спаном `slow-dependency` (`jaeger-slow-trace.png`) — приложен только список трейсов.
 - [x] Платные облачные ресурсы не создавались; стенд локальный, удаляется `docker compose down -v`.
