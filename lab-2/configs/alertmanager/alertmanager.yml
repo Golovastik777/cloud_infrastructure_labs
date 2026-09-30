@@ -1,0 +1,12 @@
+route:
+  receiver: neoshop-webhook
+  group_by: [alertname]   # один алерт = одно уведомление, а не по штуке на каждый ряд
+  group_wait: 10s         # сколько ждать соседей по группе перед первой отправкой
+  group_interval: 30s     # как часто слать изменения в уже открытой группе
+  repeat_interval: 1h     # напоминание, если алерт всё ещё горит
+
+receivers:
+  - name: neoshop-webhook
+    webhook_configs:
+      - url: http://alert-receiver:9000/alerts
+        send_resolved: true   # сообщать и о том, что алерт погас

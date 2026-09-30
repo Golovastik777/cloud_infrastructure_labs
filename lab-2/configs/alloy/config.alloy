@@ -1,0 +1,104 @@
+// Grafana Alloy: сбор логов контейнеров стенда и отправка в Loki.
+// Конвейер: discovery.docker → loki.source.docker → loki.process → loki.write
+
+// 1. Находим контейнеры через Docker API.
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "10s"   // по умолчанию 1m: пересозданный контейнер минуту был бы без логов
+}
+
+// 2. Превращаем служебные __meta_* метки Docker в метки Loki.
+//    Метки — это индекс Loki: только то, по чему выбираем поток логов.
+discovery.relabel "containers" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+// 3. Читаем stdout/stderr найденных контейнеров.
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.process.neoshop.receiver]
+}
+
+// 4. JSON-логи NeoShop API разбираем заранее, а не при каждом запросе.
+loki.process "neoshop" {
+  stage.match {
+    selector = "{service=\"neoshop-api\"}"
+
+    stage.json {
+      expressions = { level = "", trace_id = "" }
+    }
+
+    // level: 3–4 значения — годится в метку (индекс).
+    stage.labels {
+      values = { level = "" }
+    }
+
+    // trace_id уникален у каждого запроса — в метке взорвал бы индекс.
+    // Structured metadata хранится рядом со строкой, но не индексируется.
+    stage.structured_metadata {
+      values = { trace_id = "" }
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+// 5. Отправляем в Loki по имени сервиса из compose.
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Трейсы: Alloy как OpenTelemetry Collector.
+// Конвейер: otelcol.receiver.otlp → otelcol.processor.batch → otelcol.exporter.otlp (Jaeger)
+
+// 6. Принимаем OTLP от сервисов: 4318 — HTTP (его использует NeoShop API), 4317 — gRPC.
+otelcol.receiver.otlp "default" {
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+// 7. Копим спаны и отправляем пачками — меньше соединений и нагрузки на бэкенд.
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlp.jaeger.input]
+  }
+}
+
+// 8. Отдаём в Jaeger по OTLP/gRPC. Сменить бэкенд = поменять только этот блок.
+otelcol.exporter.otlp "jaeger" {
+  client {
+    endpoint = "jaeger:4317"
+    tls {
+      insecure = true   // внутри сети compose, без TLS
+    }
+  }
+}

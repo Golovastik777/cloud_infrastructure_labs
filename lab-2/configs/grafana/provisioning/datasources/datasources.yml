@@ -1,0 +1,30 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus          # фиксированный uid — на него ссылаются панели дашборда
+    type: prometheus
+    access: proxy            # запросы идут от сервера Grafana, а не из браузера
+    url: http://prometheus:9090
+    isDefault: true
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      # Связка лог → трейс: у строки с trace_id появляется кнопка «Открыть в Jaeger».
+      derivedFields:
+        - name: TraceID
+          matcherType: label          # берём из structured metadata, а не регуляркой по тексту
+          matcherRegex: trace_id
+          datasourceUid: jaeger
+          url: "$${__value.raw}"      # $$ — экранирование $ в provisioning
+          urlDisplayLabel: Открыть в Jaeger
+
+  - name: Jaeger
+    uid: jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686

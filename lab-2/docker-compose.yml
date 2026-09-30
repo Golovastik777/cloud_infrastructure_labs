@@ -1,0 +1,90 @@
+services:
+  neoshop-api:
+    build: ./app
+    image: neoshop-api:lab2
+    ports:
+      - "8080:8080"
+    environment:
+      OTEL_SERVICE_NAME: neoshop-api
+      # Трейсы уходят в агент (Alloy), а не напрямую в Jaeger. OTLP/HTTP — порт 4318.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-lifecycle   # позволяет перечитать конфиг: POST /-/reload
+    volumes:
+      - ./configs/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?задай GRAFANA_ADMIN_PASSWORD в .env}
+    volumes:
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./configs/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:3.7.8
+    command: -config.file=/etc/loki/local-config.yaml   # встроенный конфиг single-binary с хранением на диске
+    volumes:
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345   # UI Alloy: граф компонентов и их состояние
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./configs/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      # Docker API: через него Alloy находит контейнеры и читает их логи.
+      # Доступ к сокету = полный контроль над Docker, в проде так делают осознанно.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "12345:12345"
+    depends_on:
+      - loki
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/jaeger:2.20.0   # Jaeger v2, all-in-one с хранением в памяти. Не 2.21+: там убран v1 HTTP API, которым пользуется Grafana
+    ports:
+      - "16686:16686"   # UI. OTLP-порты 4317/4318 наружу не открываем: трейсы приходят от Alloy
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+    volumes:
+      - ./configs/alertmanager:/etc/alertmanager:ro
+    ports:
+      - "9093:9093"
+    depends_on:
+      - alert-receiver
+
+  # Получатель уведомлений: webhook, который пишет алерты в свой лог.
+  alert-receiver:
+    image: python:3.12.14-slim
+    command: ["python", "-u", "/app/receiver.py"]
+    volumes:
+      - ./alert-receiver/receiver.py:/app/receiver.py:ro
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:

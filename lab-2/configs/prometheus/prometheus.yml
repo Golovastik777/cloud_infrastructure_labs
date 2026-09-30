@@ -1,0 +1,22 @@
+global:
+  # Для лабы опрашиваем часто, чтобы графики и алерты реагировали на кнопки быстро.
+  # В проде обычно 15–30s: чаще — больше нагрузки на Prometheus и больше данных.
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+# Правила алертов: Prometheus вычисляет их каждые evaluation_interval.
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# Куда отправлять сработавшие алерты. Группировка, повторы и доставка — уже забота Alertmanager.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: neoshop-api
+    metrics_path: /metrics
+    static_configs:
+      # Имя сервиса из docker-compose.yml: внутри сети compose его резолвит встроенный DNS.
+      - targets: ["neoshop-api:8080"]

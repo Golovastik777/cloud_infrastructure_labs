@@ -1,0 +1,44 @@
+groups:
+  - name: neoshop-api-red
+    rules:
+      # Errors: доля 5xx среди всех запросов.
+      - alert: NeoShopHighErrorRate
+        expr: |
+          (sum(rate(http_request_errors_total{job="neoshop-api"}[1m])) or vector(0))
+            / sum(rate(http_requests_total{job="neoshop-api"}[1m]))
+          > 0.05
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "NeoShop API: доля ошибок 5xx {{ $value | humanizePercentage }}"
+          description: >-
+            Больше 5% запросов завершаются 5xx. Падают оплаты и заказы — прямые потери выручки.
+            Смотри логи {service="neoshop-api", level="error"} и трейсы с error=true.
+
+      # Rate: всплеск интенсивности запросов.
+      - alert: NeoShopTrafficSpike
+        expr: sum(rate(http_requests_total{job="neoshop-api"}[1m])) > 10
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "NeoShop API: всплеск трафика {{ $value | humanize }} rps"
+          description: >-
+            Интенсивность в 10+ раз выше обычной: распродажа, парсер/бот, ретраи клиентов или DDoS.
+            Риск упереться в CPU, пул соединений к PostgreSQL и Redis.
+
+      # Duration: p95 времени ответа.
+      - alert: NeoShopHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="neoshop-api"}[1m]))
+          ) > 1
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "NeoShop API: p95 времени ответа {{ $value | humanizeDuration }}"
+          description: >-
+            5% запросов дольше 1 с — покупатель замечает, растут брошенные корзины.
+            Часто предвестник ошибок: медленная зависимость → таймауты → 5xx.
